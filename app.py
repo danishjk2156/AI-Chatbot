@@ -13,15 +13,28 @@ def get_secret(name, default=None):
         return default
 
 
-MODEL = get_secret("GEMINI_MODEL", "gemini-2.5-flash")
+# Optional: pin a model in secrets, otherwise the newest available one is selected
+DEFAULT_MODEL = get_secret("GEMINI_MODEL")
+FALLBACK_MODEL = "gemini-2.5-flash"
 SYSTEM_PROMPT = "You are a friendly, helpful assistant. Keep answers clear and concise."
 api_key = get_secret("GEMINI_API_KEY")
 
-with st.sidebar:
-    st.header("Settings")
-    if st.button("Clear chat"):
-        st.session_state.messages = []
-    st.caption(f"Model: {MODEL}")
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def list_chat_models(key):
+    # Ask Gemini which text chat models this key can use, newest first
+    try:
+        names = [
+            m.name.removeprefix("models/")
+            for m in genai.Client(api_key=key).models.list()
+            if "generateContent" in (m.supported_actions or [])
+            and m.name.startswith("models/gemini")
+            and not any(x in m.name for x in ("tts", "image", "audio", "live"))
+        ]
+        return sorted(names, reverse=True)
+    except Exception:
+        return []
+
 
 st.title("🤖 Gemini Chatbot")
 st.caption("A simple chatbot built with Streamlit and Google Gemini.")
@@ -29,6 +42,14 @@ st.caption("A simple chatbot built with Streamlit and Google Gemini.")
 if not api_key:
     st.error("GEMINI_API_KEY is not set. Add it to .streamlit/secrets.toml or the Streamlit Cloud app's Secrets.")
     st.stop()
+
+with st.sidebar:
+    st.header("Settings")
+    models = list_chat_models(api_key) or [DEFAULT_MODEL or FALLBACK_MODEL]
+    index = models.index(DEFAULT_MODEL) if DEFAULT_MODEL in models else 0
+    MODEL = st.selectbox("Model", models, index=index)
+    if st.button("Clear chat"):
+        st.session_state.messages = []
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
