@@ -48,17 +48,19 @@ api_key = find_api_key()
 @st.cache_data(ttl=3600, show_spinner=False)
 def list_chat_models(key):
     # Ask Gemini which text chat models this key can use, newest first
+    # Keep the client in a variable: if it's garbage-collected mid-listing the request fails
+    client = genai.Client(api_key=key)
     try:
         names = [
             m.name.removeprefix("models/")
-            for m in genai.Client(api_key=key).models.list()
+            for m in client.models.list()
             if "generateContent" in (m.supported_actions or [])
             and m.name.startswith("models/gemini")
             and not any(x in m.name for x in ("tts", "image", "audio", "live"))
         ]
-        return sorted(names, reverse=True)
-    except Exception:
-        return []
+        return sorted(names, reverse=True), None
+    except Exception as e:
+        return [], str(e)
 
 
 st.title("🤖 Gemini Chatbot")
@@ -71,7 +73,10 @@ if not api_key:
 
 with st.sidebar:
     st.header("Settings")
-    models = list_chat_models(api_key) or [DEFAULT_MODEL or FALLBACK_MODEL]
+    models, list_error = list_chat_models(api_key)
+    if list_error:
+        st.warning(f"Couldn't load the model list from Google, using the default model. Reason: {list_error[:200]}")
+    models = models or [DEFAULT_MODEL or FALLBACK_MODEL]
     index = models.index(DEFAULT_MODEL) if DEFAULT_MODEL in models else 0
     MODEL = st.selectbox("Model", models, index=index)
     if st.button("Clear chat"):
