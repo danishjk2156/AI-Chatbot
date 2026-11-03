@@ -15,19 +15,20 @@ def get_secret(name, default=None):
 
 MODEL = get_secret("GEMINI_MODEL", "gemini-2.5-flash")
 SYSTEM_PROMPT = "You are a friendly, helpful assistant. Keep answers clear and concise."
+api_key = get_secret("GEMINI_API_KEY")
 
 with st.sidebar:
     st.header("Settings")
-    api_key = get_secret("GEMINI_API_KEY")
-    if not api_key:
-        api_key = st.text_input("Gemini API key", type="password")
-        st.caption("Get a free key at https://aistudio.google.com/apikey")
     if st.button("Clear chat"):
         st.session_state.messages = []
     st.caption(f"Model: {MODEL}")
 
 st.title("🤖 Gemini Chatbot")
 st.caption("A simple chatbot built with Streamlit and Google Gemini.")
+
+if not api_key:
+    st.error("GEMINI_API_KEY is not set. Add it to .streamlit/secrets.toml or the Streamlit Cloud app's Secrets.")
+    st.stop()
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -39,10 +40,6 @@ for msg in st.session_state.messages:
 prompt = st.chat_input("Type your message...")
 
 if prompt:
-    if not api_key:
-        st.warning("Please enter your Gemini API key in the sidebar.")
-        st.stop()
-
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
