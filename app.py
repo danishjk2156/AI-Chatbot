@@ -1,3 +1,5 @@
+import os
+
 import streamlit as st
 from google import genai
 from google.genai import types
@@ -17,7 +19,30 @@ def get_secret(name, default=None):
 DEFAULT_MODEL = get_secret("GEMINI_MODEL")
 FALLBACK_MODEL = "gemini-2.5-flash"
 SYSTEM_PROMPT = "You are a friendly, helpful assistant. Keep answers clear and concise."
-api_key = get_secret("GEMINI_API_KEY")
+
+
+def find_api_key():
+    # Accept the key at the top level, inside any [section], or as an env var
+    key = get_secret("GEMINI_API_KEY")
+    if key:
+        return key
+    try:
+        for value in st.secrets.values():
+            if hasattr(value, "get") and value.get("GEMINI_API_KEY"):
+                return value.get("GEMINI_API_KEY")
+    except Exception:
+        pass
+    return os.environ.get("GEMINI_API_KEY")
+
+
+def secret_names():
+    try:
+        return list(st.secrets.keys())
+    except Exception:
+        return []
+
+
+api_key = find_api_key()
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -41,6 +66,7 @@ st.caption("A simple chatbot built with Streamlit and Google Gemini.")
 
 if not api_key:
     st.error("GEMINI_API_KEY is not set. Add it to .streamlit/secrets.toml or the Streamlit Cloud app's Secrets.")
+    st.caption(f"Secret names the app can see: {secret_names() or 'none'}")
     st.stop()
 
 with st.sidebar:
